@@ -1,24 +1,36 @@
 # Claude Context - sage
 
-This file provides context for Claude Code sessions.
+## Overview
+Standalone CLI and Go library for unified LLM provider access. Manages providers (OpenAI, Anthropic, Ollama), profiles, and encrypted credential storage.
 
-## Project Overview
-[Brief description of what this project does]
+## Constraints
+- **Go stdlib only** — no third-party dependencies
+- **JSON for config** — stdlib has no YAML parser
+- **AES-256-GCM** for credential encryption
 
-## Tech Stack
-- [Primary language/framework]
-- [Key dependencies]
+## Key Patterns
+- `pkg/sage/` — Public library API (importable by hub-core)
+- `internal/` — CLI internals, not exported
+- `cmd/sage/` — CLI entrypoint
+- Config location: `~/.config/sage/`
 
-## Key Patterns & Conventions
-- [Coding patterns used in this project]
-- [Naming conventions]
-- [Architecture decisions]
-
-## Important Context
-[Anything Claude should know when working on this project]
+## Development
+```bash
+./scripts/build.sh    # Build binary to bin/sage
+go test ./...         # Run tests
+go build ./pkg/sage/  # Build library only
+```
 
 ## Project Structure
-[Brief overview of directory structure if helpful]
+```
+sage/
+├── cmd/sage/           # CLI binary
+├── pkg/sage/           # Public library
+│   └── providers/      # Provider implementations
+├── internal/cli/       # CLI internals
+├── scripts/            # Build/test scripts
+└── docs/               # Documentation & plan
+```
 
 ## Helper Scripts
 Scripts in `scripts/` are reusable helpers. **Before writing repetitive bash commands:**
@@ -26,3 +38,6 @@ Scripts in `scripts/` are reusable helpers. **Before writing repetitive bash com
 2. If not, consider creating one for sequences you'll run again
 
 This reduces permission prompts and ensures consistency.
+
+Available scripts:
+- `scripts/build.sh` — Build the sage CLI binary to `bin/sage`
