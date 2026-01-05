@@ -30,10 +30,11 @@ func (o *openai) Name() string {
 // OpenAI API request/response types
 
 type openaiRequest struct {
-	Model     string          `json:"model"`
-	Messages  []openaiMessage `json:"messages"`
-	MaxTokens int             `json:"max_tokens,omitempty"`
-	Stream    bool            `json:"stream,omitempty"`
+	Model               string          `json:"model"`
+	Messages            []openaiMessage `json:"messages"`
+	MaxTokens           int             `json:"max_tokens,omitempty"`
+	MaxCompletionTokens int             `json:"max_completion_tokens,omitempty"`
+	Stream              bool            `json:"stream,omitempty"`
 }
 
 type openaiMessage struct {
@@ -197,12 +198,33 @@ func (o *openai) buildRequest(req Request, stream bool) openaiRequest {
 		Content: req.Prompt,
 	})
 
-	return openaiRequest{
-		Model:     req.Model,
-		Messages:  messages,
-		MaxTokens: req.MaxTokens,
-		Stream:    stream,
+	r := openaiRequest{
+		Model:    req.Model,
+		Messages: messages,
+		Stream:   stream,
 	}
+
+	// Newer models (o1, o3, gpt-4o) use max_completion_tokens instead of max_tokens
+	if req.MaxTokens > 0 {
+		if o.usesMaxCompletionTokens(req.Model) {
+			r.MaxCompletionTokens = req.MaxTokens
+		} else {
+			r.MaxTokens = req.MaxTokens
+		}
+	}
+
+	return r
+}
+
+// usesMaxCompletionTokens returns true for models that require max_completion_tokens.
+func (o *openai) usesMaxCompletionTokens(model string) bool {
+	// Newer models use max_completion_tokens instead of max_tokens:
+	// - o1, o3 reasoning models
+	// - gpt-4o and newer (gpt-5, etc.)
+	return strings.HasPrefix(model, "o1") ||
+		strings.HasPrefix(model, "o3") ||
+		strings.Contains(model, "gpt-4o") ||
+		strings.Contains(model, "gpt-5")
 }
 
 func (o *openai) endpoint(req Request) string {
