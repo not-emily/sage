@@ -65,6 +65,9 @@ func (o *ollama) Complete(req Request) (*Response, error) {
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			return nil, fmt.Errorf("ollama not running (is Ollama installed and started?)")
+		}
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -109,6 +112,9 @@ func (o *ollama) CompleteStream(req Request) (<-chan Chunk, error) {
 
 	resp, err := http.DefaultClient.Do(httpReq)
 	if err != nil {
+		if strings.Contains(err.Error(), "connection refused") {
+			return nil, fmt.Errorf("ollama not running (is Ollama installed and started?)")
+		}
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
@@ -211,4 +217,69 @@ func (o *ollama) handleError(resp *http.Response) error {
 	}
 
 	return fmt.Errorf("ollama error (%d): %s", resp.StatusCode, string(body))
+}
+
+// ListModels returns available models from the local Ollama instance.
+func (o *ollama) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+	endpoint := ollamaDefaultURL + "/api/tags"
+	if baseURL != "" {
+		endpoint = strings.TrimSuffix(baseURL, "/") + "/api/tags"
+	}
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		// Check for connection refused (Ollama not running)
+		if strings.Contains(err.Error(), "connection refused") {
+			return nil, fmt.Errorf("ollama not running at %s (is Ollama installed and started?)", endpoint)
+		}
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result ollamaTagsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	models := make([]ModelInfo, 0, len(result.Models))
+	for _, m := range result.Models {
+		info := ModelInfo{
+			ID:   m.Name,
+			Name: m.Name,
+		}
+		if m.Details.ParameterSize != "" {
+			info.Description = m.Details.ParameterSize
+		}
+		models = append(models, info)
+	}
+
+	return models, nil
+}
+
+type ollamaTagsResponse struct {
+	Models []ollamaModelInfo `json:"models"`
+}
+
+type ollamaModelInfo struct {
+	Name    string             `json:"name"`
+	Details ollamaModelDetails `json:"details"`
+}
+
+type ollamaModelDetails struct {
+	ParameterSize string `json:"parameter_size"`
+	Family        string `json:"family"`
 }

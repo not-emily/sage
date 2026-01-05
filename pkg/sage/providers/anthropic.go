@@ -266,3 +266,16 @@ func (a *anthropic) handleError(resp *http.Response) error {
 
 	return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 }
+
+// ListModels returns available Claude models.
+// Anthropic doesn't have a models endpoint, so we return a hardcoded list.
+func (a *anthropic) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+	// Hardcoded list of current Claude models
+	return []ModelInfo{
+		{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Description: "Most capable model for complex tasks"},
+		{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Description: "Balanced performance and speed"},
+		{ID: "claude-3-5-haiku-latest", Name: "Claude 3.5 Haiku", Description: "Fast and efficient for simple tasks"},
+		{ID: "claude-3-5-sonnet-latest", Name: "Claude 3.5 Sonnet", Description: "Previous generation balanced model"},
+		{ID: "claude-3-opus-latest", Name: "Claude 3 Opus", Description: "Previous generation top model"},
+	}, nil
+}

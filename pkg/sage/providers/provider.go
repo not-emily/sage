@@ -16,6 +16,16 @@ type Provider interface {
 
 	// CompleteStream sends a request and streams chunks.
 	CompleteStream(req Request) (<-chan Chunk, error)
+
+	// ListModels returns available models from this provider.
+	ListModels(apiKey, baseURL string) ([]ModelInfo, error)
+}
+
+// ModelInfo describes an available model.
+type ModelInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // Request is the normalized request format for providers.

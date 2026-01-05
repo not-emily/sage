@@ -284,3 +284,62 @@ func (c *Client) HasProviderAccount(providerName, account string) bool {
 	}
 	return false
 }
+
+// --- Model Discovery ---
+
+// ModelInfo describes an available model.
+type ModelInfo struct {
+	ID          string `json:"id"`
+	Name        string `json:"name,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// ListModels returns available models from a provider.
+// If account is empty, uses the first configured account.
+func (c *Client) ListModels(providerName, account string) ([]ModelInfo, error) {
+	provider, err := providers.Get(providerName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get API key for the account
+	var apiKey string
+	providerConfig, ok := c.config.Providers[providerName]
+	if ok {
+		// Use specified account or first available
+		if account == "" && len(providerConfig.Accounts) > 0 {
+			account = providerConfig.Accounts[0]
+		}
+		if account != "" {
+			apiKey = c.secrets[providerName+":"+account]
+		}
+	}
+
+	// Get baseURL if configured
+	var baseURL string
+	if ok {
+		baseURL = providerConfig.BaseURL
+	}
+
+	providerModels, err := provider.ListModels(apiKey, baseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert provider models to sage models
+	models := make([]ModelInfo, len(providerModels))
+	for i, m := range providerModels {
+		models[i] = ModelInfo{
+			ID:          m.ID,
+			Name:        m.Name,
+			Description: m.Description,
+		}
+	}
+
+	return models, nil
+}
+
+// ListAvailableProviders returns all provider names that sage supports.
+func ListAvailableProviders() []string {
+	return providers.List()
+}

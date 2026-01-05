@@ -23,6 +23,8 @@ func runProvider(args []string) error {
 		return runProviderAdd(args[1:])
 	case "remove":
 		return runProviderRemove(args[1:])
+	case "models":
+		return runProviderModels(args[1:])
 	case "help", "-h", "--help":
 		return showProviderHelp()
 	default:
@@ -37,12 +39,14 @@ Commands:
   list      List configured providers and accounts
   add       Add a provider account
   remove    Remove a provider account
+  models    List available models from a provider
 
 Examples:
   sage provider list
   sage provider add openai
   sage provider add openai --account=work
   sage provider add openai --api-key-env=OPENAI_API_KEY
+  sage provider models openai
   sage provider remove openai --account=work
 `
 	fmt.Print(help)

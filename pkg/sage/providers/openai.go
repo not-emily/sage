@@ -234,3 +234,57 @@ func (o *openai) handleError(resp *http.Response) error {
 
 	return fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
 }
+
+// ListModels returns available models from OpenAI.
+func (o *openai) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+	endpoint := "https://api.openai.com/v1/models"
+	if baseURL != "" {
+		endpoint = strings.TrimSuffix(baseURL, "/") + "/v1/models"
+	}
+
+	req, err := http.NewRequest("GET", endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, string(body))
+	}
+
+	var result openaiModelsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	models := make([]ModelInfo, 0, len(result.Data))
+	for _, m := range result.Data {
+		// Filter to chat models (skip embeddings, audio, etc.)
+		if strings.Contains(m.ID, "gpt") || strings.Contains(m.ID, "o1") || strings.Contains(m.ID, "o3") {
+			models = append(models, ModelInfo{
+				ID:   m.ID,
+				Name: m.ID,
+			})
+		}
+	}
+
+	return models, nil
+}
+
+type openaiModelsResponse struct {
+	Data []openaiModel `json:"data"`
+}
+
+type openaiModel struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	OwnedBy string `json:"owned_by"`
+}

@@ -22,6 +22,10 @@ func (m *mockProvider) CompleteStream(req Request) (<-chan Chunk, error) {
 	return ch, nil
 }
 
+func (m *mockProvider) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+	return []ModelInfo{{ID: "mock-model", Name: "Mock Model"}}, nil
+}
+
 func TestRegisterAndGet(t *testing.T) {
 	// Clear registry for test
 	originalRegistry := registry
