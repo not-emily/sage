@@ -204,15 +204,27 @@ func TestSetGetDeleteSecret(t *testing.T) {
 	}
 }
 
-func TestLoadSecrets_NoMasterKey(t *testing.T) {
+func TestLoadSecrets_AutoInitializes(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 
-	// Don't call InitSecrets - no master key
+	// Don't call InitSecrets - should auto-initialize
 
-	_, err := LoadSecrets()
-	if err == nil {
-		t.Error("LoadSecrets() should error when master key doesn't exist")
+	secrets, err := LoadSecrets()
+	if err != nil {
+		t.Fatalf("LoadSecrets() should auto-initialize, got error: %v", err)
+	}
+	if secrets == nil {
+		t.Error("LoadSecrets() should return empty map, not nil")
+	}
+	if len(secrets) != 0 {
+		t.Errorf("LoadSecrets() should return empty map, got %d items", len(secrets))
+	}
+
+	// Verify master key was created
+	keyPath, _ := MasterKeyPath()
+	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
+		t.Error("Master key should have been auto-created")
 	}
 }
 

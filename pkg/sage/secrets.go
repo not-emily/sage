@@ -69,12 +69,19 @@ func loadMasterKey() ([]byte, error) {
 		return nil, err
 	}
 
-	// Check key exists
+	// Check key exists, auto-initialize if not
 	info, err := os.Stat(keyPath)
 	if os.IsNotExist(err) {
-		return nil, errors.New("master key not found: run 'sage init' first")
-	}
-	if err != nil {
+		// Auto-initialize on first use
+		if err := InitSecrets(); err != nil {
+			return nil, fmt.Errorf("failed to auto-initialize: %w", err)
+		}
+		// Re-stat after initialization
+		info, err = os.Stat(keyPath)
+		if err != nil {
+			return nil, fmt.Errorf("cannot stat master key after init: %w", err)
+		}
+	} else if err != nil {
 		return nil, fmt.Errorf("cannot stat master key: %w", err)
 	}
 
