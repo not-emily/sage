@@ -4,7 +4,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-echo "Building sage..."
-go build -o bin/sage ./cmd/sage
+# Get version from git
+VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
-echo "Done: bin/sage"
+echo "Building sage ${VERSION}..."
+go build -ldflags "-X 'github.com/not-emily/sage/internal/cli.Version=${VERSION}'" -o bin/sage ./cmd/sage
+
+echo "Done: bin/sage (${VERSION})"

@@ -79,21 +79,21 @@ func TestOpenAI_BuildRequest_NoSystem(t *testing.T) {
 func TestOpenAI_Endpoint(t *testing.T) {
 	o := &openai{}
 
-	// Default endpoint
+	// Default endpoint (no base_url)
 	req := Request{}
 	if got := o.endpoint(req); got != openaiDefaultURL {
 		t.Errorf("endpoint() = %q, want %q", got, openaiDefaultURL)
 	}
 
-	// Custom endpoint
-	req.BaseURL = "https://custom.api.com"
+	// Custom endpoint - base_url includes /v1 (standard convention)
+	req.BaseURL = "https://custom.api.com/v1"
 	expected := "https://custom.api.com/v1/chat/completions"
 	if got := o.endpoint(req); got != expected {
 		t.Errorf("endpoint() = %q, want %q", got, expected)
 	}
 
 	// Custom endpoint with trailing slash
-	req.BaseURL = "https://custom.api.com/"
+	req.BaseURL = "https://custom.api.com/v1/"
 	if got := o.endpoint(req); got != expected {
 		t.Errorf("endpoint() = %q, want %q", got, expected)
 	}

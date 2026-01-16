@@ -236,7 +236,7 @@ func (o *openai) usesMaxCompletionTokens(model string) bool {
 
 func (o *openai) endpoint(req Request) string {
 	if req.BaseURL != "" {
-		return strings.TrimSuffix(req.BaseURL, "/") + "/v1/chat/completions"
+		return strings.TrimSuffix(req.BaseURL, "/") + "/chat/completions"
 	}
 	return openaiDefaultURL
 }
@@ -268,7 +268,7 @@ func (o *openai) handleError(resp *http.Response) error {
 func (o *openai) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
 	endpoint := "https://api.openai.com/v1/models"
 	if baseURL != "" {
-		endpoint = strings.TrimSuffix(baseURL, "/") + "/v1/models"
+		endpoint = strings.TrimSuffix(baseURL, "/") + "/models"
 	}
 
 	req, err := http.NewRequest("GET", endpoint, nil)

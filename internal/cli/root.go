@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// Version is set at build time.
-var Version = "0.1.0"
+// Version is set at build time via ldflags.
+var Version = "dev"
 
 // Run executes the CLI with the given arguments.
 func Run(args []string) error {
@@ -33,7 +33,7 @@ func Run(args []string) error {
 }
 
 func showVersion() error {
-	fmt.Printf("sage v%s\n", Version)
+	fmt.Printf("sage %s\n", Version)
 	return nil
 }
 
