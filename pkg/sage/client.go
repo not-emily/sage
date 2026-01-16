@@ -102,14 +102,15 @@ func (c *Client) buildProviderRequest(profileName string, req Request) (provider
 		return providers.Request{}, err
 	}
 
-	// Get API key for this provider:account
-	secretKey := profile.Provider + ":" + profile.Account
-	apiKey := c.secrets[secretKey]
+	// Get API key from secrets (new format: provider:account:field)
+	apiKey := c.secrets[profile.Provider+":"+profile.Account+":api_key"]
 
-	// Get provider config for BaseURL
+	// Get base_url from config (non-secret field)
 	var baseURL string
 	if providerConfig, ok := c.config.Providers[profile.Provider]; ok {
-		baseURL = providerConfig.BaseURL
+		if accountFields, ok := providerConfig.Accounts[profile.Account]; ok {
+			baseURL = accountFields["base_url"]
+		}
 	}
 
 	return providers.Request{
@@ -186,82 +187,102 @@ func (c *Client) SetDefaultProfile(name string) error {
 
 // --- Provider Account Management ---
 
-// AddProviderAccount adds a provider account with an API key.
-func (c *Client) AddProviderAccount(providerName, account, apiKey string) error {
+// AddProviderAccount adds a provider account with the specified fields.
+// Fields should include all required fields for the provider (e.g., "api_key", "base_url").
+// Use GetProviderFields to discover what fields a provider requires.
+func (c *Client) AddProviderAccount(providerName, account string, fields map[string]string) error {
 	// Validate provider exists
 	if !providers.Exists(providerName) {
 		return fmt.Errorf("unknown provider: %s", providerName)
 	}
 
-	// Add account to provider config
-	providerConfig := c.config.Providers[providerName]
+	// Get provider to access field definitions
+	provider, _ := providers.Get(providerName)
+	fieldDefs := provider.Fields()
 
-	// Check if account already exists
-	for _, a := range providerConfig.Accounts {
-		if a == account {
-			// Account exists, just update the key
-			c.secrets[providerName+":"+account] = apiKey
-			return SaveSecrets(c.secrets)
+	// Validate required fields are present
+	for _, f := range fieldDefs {
+		if f.Required {
+			val, ok := fields[f.Key]
+			if !ok || val == "" {
+				return fmt.Errorf("required field %q missing for provider %s", f.Key, providerName)
+			}
 		}
 	}
 
-	// Add new account
-	providerConfig.Accounts = append(providerConfig.Accounts, account)
-	c.config.Providers[providerName] = providerConfig
+	// Apply defaults for missing optional fields
+	fieldsWithDefaults := make(map[string]string)
+	for k, v := range fields {
+		fieldsWithDefaults[k] = v
+	}
+	for _, f := range fieldDefs {
+		if f.Default != "" {
+			if _, ok := fieldsWithDefaults[f.Key]; !ok {
+				fieldsWithDefaults[f.Key] = f.Default
+			}
+		}
+	}
 
-	// Store the API key
-	c.secrets[providerName+":"+account] = apiKey
+	// Convert provider fields to FieldDef for storage
+	storageDefs := make([]FieldDef, len(fieldDefs))
+	for i, f := range fieldDefs {
+		storageDefs[i] = FieldDef{Key: f.Key, Secret: f.Secret}
+	}
 
-	// Save both config and secrets
-	if err := c.config.Save(); err != nil {
+	// Store using new format
+	if err := c.config.SetAccountFields(providerName, account, fieldsWithDefaults, storageDefs); err != nil {
 		return err
 	}
-	return SaveSecrets(c.secrets)
+
+	// Update in-memory secrets cache for secret fields
+	for _, f := range fieldDefs {
+		if f.Secret {
+			if val, ok := fieldsWithDefaults[f.Key]; ok {
+				c.secrets[providerName+":"+account+":"+f.Key] = val
+			}
+		}
+	}
+
+	return nil
 }
 
-// RemoveProviderAccount removes a provider account and its API key.
+// RemoveProviderAccount removes a provider account and all its secrets.
 func (c *Client) RemoveProviderAccount(providerName, account string) error {
-	providerConfig, ok := c.config.Providers[providerName]
-	if !ok {
-		return fmt.Errorf("provider not configured: %s", providerName)
+	// Remove from config
+	if err := c.config.RemoveAccount(providerName, account); err != nil {
+		return err
 	}
 
-	// Find and remove account
-	found := false
-	newAccounts := make([]string, 0, len(providerConfig.Accounts))
-	for _, a := range providerConfig.Accounts {
-		if a == account {
-			found = true
-		} else {
-			newAccounts = append(newAccounts, a)
+	// Remove all secrets for this account
+	if err := DeleteAccountSecrets(providerName, account); err != nil {
+		return err
+	}
+
+	// Update in-memory secrets cache (remove all keys with this prefix)
+	prefix := providerName + ":" + account + ":"
+	for key := range c.secrets {
+		if len(key) > len(prefix) && key[:len(prefix)] == prefix {
+			delete(c.secrets, key)
 		}
 	}
 
-	if !found {
-		return fmt.Errorf("account not found: %s:%s", providerName, account)
-	}
-
-	providerConfig.Accounts = newAccounts
-	c.config.Providers[providerName] = providerConfig
-
-	// Remove the secret
-	delete(c.secrets, providerName+":"+account)
-
-	// Save both
-	if err := c.config.Save(); err != nil {
-		return err
-	}
-	return SaveSecrets(c.secrets)
+	return nil
 }
 
 // ListProviders returns all configured providers with their accounts.
 func (c *Client) ListProviders() []ProviderInfo {
 	infos := make([]ProviderInfo, 0, len(c.config.Providers))
 	for name, config := range c.config.Providers {
+		// Extract account names from the map
+		accounts := make([]string, 0, len(config.Accounts))
+		for accountName := range config.Accounts {
+			accounts = append(accounts, accountName)
+		}
+		sort.Strings(accounts)
+
 		infos = append(infos, ProviderInfo{
 			Name:     name,
-			Accounts: config.Accounts,
-			BaseURL:  config.BaseURL,
+			Accounts: accounts,
 		})
 	}
 	// Sort by name for consistent ordering
@@ -273,16 +294,7 @@ func (c *Client) ListProviders() []ProviderInfo {
 
 // HasProviderAccount checks if a provider account exists.
 func (c *Client) HasProviderAccount(providerName, account string) bool {
-	providerConfig, ok := c.config.Providers[providerName]
-	if !ok {
-		return false
-	}
-	for _, a := range providerConfig.Accounts {
-		if a == account {
-			return true
-		}
-	}
-	return false
+	return c.config.HasAccount(providerName, account)
 }
 
 // --- Model Discovery ---
@@ -302,23 +314,26 @@ func (c *Client) ListModels(providerName, account string) ([]ModelInfo, error) {
 		return nil, err
 	}
 
-	// Get API key for the account
-	var apiKey string
+	// Get account fields
+	var apiKey, baseURL string
 	providerConfig, ok := c.config.Providers[providerName]
 	if ok {
 		// Use specified account or first available
 		if account == "" && len(providerConfig.Accounts) > 0 {
-			account = providerConfig.Accounts[0]
+			// Get first account name
+			for name := range providerConfig.Accounts {
+				account = name
+				break
+			}
 		}
 		if account != "" {
-			apiKey = c.secrets[providerName+":"+account]
+			// Get API key from secrets (new format)
+			apiKey = c.secrets[providerName+":"+account+":api_key"]
+			// Get base_url from config
+			if accountFields, ok := providerConfig.Accounts[account]; ok {
+				baseURL = accountFields["base_url"]
+			}
 		}
-	}
-
-	// Get baseURL if configured
-	var baseURL string
-	if ok {
-		baseURL = providerConfig.BaseURL
 	}
 
 	providerModels, err := provider.ListModels(apiKey, baseURL)
@@ -342,4 +357,18 @@ func (c *Client) ListModels(providerName, account string) ([]ModelInfo, error) {
 // ListAvailableProviders returns all provider names that sage supports.
 func ListAvailableProviders() []string {
 	return providers.List()
+}
+
+// ProviderField re-exports the providers.ProviderField type for public API.
+type ProviderField = providers.ProviderField
+
+// GetProviderFields returns the field requirements for a provider.
+// This is a package-level function since it doesn't require a configured client.
+// Use this to discover what fields are needed before calling AddProviderAccount.
+func GetProviderFields(providerName string) ([]ProviderField, error) {
+	p, err := providers.Get(providerName)
+	if err != nil {
+		return nil, err
+	}
+	return p.Fields(), nil
 }

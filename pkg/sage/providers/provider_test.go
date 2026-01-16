@@ -26,6 +26,12 @@ func (m *mockProvider) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
 	return []ModelInfo{{ID: "mock-model", Name: "Mock Model"}}, nil
 }
 
+func (m *mockProvider) Fields() []ProviderField {
+	return []ProviderField{
+		{Key: "api_key", Label: "API Key", Required: true, Secret: true},
+	}
+}
+
 func TestRegisterAndGet(t *testing.T) {
 	// Clear registry for test
 	originalRegistry := registry

@@ -27,6 +27,13 @@ func (o *openai) Name() string {
 	return "openai"
 }
 
+func (o *openai) Fields() []ProviderField {
+	return []ProviderField{
+		{Key: "api_key", Label: "API Key", Required: true, Secret: true},
+		{Key: "base_url", Label: "Base URL", Required: false, Secret: false, Default: "https://api.openai.com/v1"},
+	}
+}
+
 // OpenAI API request/response types
 
 type openaiRequest struct {

@@ -30,6 +30,12 @@ func (a *anthropic) Name() string {
 	return "anthropic"
 }
 
+func (a *anthropic) Fields() []ProviderField {
+	return []ProviderField{
+		{Key: "api_key", Label: "API Key", Required: true, Secret: true},
+	}
+}
+
 // Anthropic API request/response types
 
 type anthropicRequest struct {

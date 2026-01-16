@@ -114,8 +114,9 @@ func TestClient_ProfileManagement(t *testing.T) {
 func TestClient_ProviderAccountManagement(t *testing.T) {
 	client := setupTestClient(t)
 
-	// Add a provider account
-	if err := client.AddProviderAccount("openai", "work", "sk-test-key"); err != nil {
+	// Add a provider account with fields map
+	fields := map[string]string{"api_key": "sk-test-key"}
+	if err := client.AddProviderAccount("openai", "work", fields); err != nil {
 		t.Fatalf("AddProviderAccount() error = %v", err)
 	}
 
@@ -139,7 +140,8 @@ func TestClient_ProviderAccountManagement(t *testing.T) {
 	}
 
 	// Add another account to same provider
-	if err := client.AddProviderAccount("openai", "personal", "sk-personal-key"); err != nil {
+	fields2 := map[string]string{"api_key": "sk-personal-key"}
+	if err := client.AddProviderAccount("openai", "personal", fields2); err != nil {
 		t.Fatalf("AddProviderAccount(personal) error = %v", err)
 	}
 
@@ -176,7 +178,8 @@ func TestClient_AddProfile_InvalidProvider(t *testing.T) {
 func TestClient_AddProviderAccount_InvalidProvider(t *testing.T) {
 	client := setupTestClient(t)
 
-	err := client.AddProviderAccount("invalid-provider", "default", "key")
+	fields := map[string]string{"api_key": "key"}
+	err := client.AddProviderAccount("invalid-provider", "default", fields)
 	if err == nil {
 		t.Error("AddProviderAccount() with invalid provider should error")
 	}
@@ -209,12 +212,14 @@ func TestClient_UpdateExistingAccount(t *testing.T) {
 	client := setupTestClient(t)
 
 	// Add account
-	if err := client.AddProviderAccount("openai", "work", "old-key"); err != nil {
+	fields := map[string]string{"api_key": "old-key"}
+	if err := client.AddProviderAccount("openai", "work", fields); err != nil {
 		t.Fatalf("AddProviderAccount() error = %v", err)
 	}
 
 	// Update with new key (same account name)
-	if err := client.AddProviderAccount("openai", "work", "new-key"); err != nil {
+	fields2 := map[string]string{"api_key": "new-key"}
+	if err := client.AddProviderAccount("openai", "work", fields2); err != nil {
 		t.Fatalf("AddProviderAccount() update error = %v", err)
 	}
 
@@ -222,5 +227,70 @@ func TestClient_UpdateExistingAccount(t *testing.T) {
 	providers := client.ListProviders()
 	if len(providers[0].Accounts) != 1 {
 		t.Errorf("Accounts count = %d, want 1 (should update, not duplicate)", len(providers[0].Accounts))
+	}
+}
+
+func TestClient_AddProviderAccount_RequiredFieldValidation(t *testing.T) {
+	client := setupTestClient(t)
+
+	// OpenAI requires api_key
+	fields := map[string]string{} // missing api_key
+	err := client.AddProviderAccount("openai", "test", fields)
+	if err == nil {
+		t.Error("AddProviderAccount() should error when required field is missing")
+	}
+
+	// With api_key should work
+	fields["api_key"] = "sk-test"
+	err = client.AddProviderAccount("openai", "test", fields)
+	if err != nil {
+		t.Errorf("AddProviderAccount() error = %v", err)
+	}
+}
+
+func TestClient_AddProviderAccount_DefaultValues(t *testing.T) {
+	client := setupTestClient(t)
+
+	// Add Ollama account with just base_url (required) - api_key is optional
+	fields := map[string]string{"base_url": "http://localhost:11434"}
+	err := client.AddProviderAccount("ollama", "local", fields)
+	if err != nil {
+		t.Errorf("AddProviderAccount() error = %v", err)
+	}
+
+	// Verify account was created
+	if !client.HasProviderAccount("ollama", "local") {
+		t.Error("Account should exist")
+	}
+}
+
+func TestGetProviderFields(t *testing.T) {
+	// Test for OpenAI
+	fields, err := GetProviderFields("openai")
+	if err != nil {
+		t.Fatalf("GetProviderFields(openai) error = %v", err)
+	}
+
+	// Should have at least api_key field
+	hasAPIKey := false
+	for _, f := range fields {
+		if f.Key == "api_key" {
+			hasAPIKey = true
+			if !f.Required {
+				t.Error("OpenAI api_key should be required")
+			}
+			if !f.Secret {
+				t.Error("api_key should be secret")
+			}
+		}
+	}
+	if !hasAPIKey {
+		t.Error("OpenAI should have api_key field")
+	}
+
+	// Test for invalid provider
+	_, err = GetProviderFields("invalid-provider")
+	if err == nil {
+		t.Error("GetProviderFields() should error for invalid provider")
 	}
 }

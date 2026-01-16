@@ -31,16 +31,19 @@ func TestConfig_SaveAndLoad(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 
-	// Create a config
+	// Create a config with new format (accounts as nested maps)
 	original := &Config{
 		Providers: map[string]ProviderConfig{
 			"openai": {
-				Accounts: []string{"default", "work"},
-				BaseURL:  "",
+				Accounts: map[string]map[string]string{
+					"default": {"base_url": "https://api.openai.com/v1"},
+					"work":    {"base_url": "https://api.openai.com/v1"},
+				},
 			},
 			"ollama": {
-				Accounts: []string{"local"},
-				BaseURL:  "http://localhost:11434",
+				Accounts: map[string]map[string]string{
+					"local": {"base_url": "http://localhost:11434"},
+				},
 			},
 		},
 		Profiles: map[string]Profile{
@@ -172,4 +175,91 @@ func TestConfig_GetProfile_NoDefault(t *testing.T) {
 	if err == nil {
 		t.Error("GetProfile('') with no default should return error")
 	}
+}
+
+func TestLoadConfig_OldFormat(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	// Create config directory
+	configDir := filepath.Join(tmp, ".config", "sage")
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		t.Fatalf("mkdir error = %v", err)
+	}
+
+	// Write old format config (accounts as array, base_url at provider level)
+	oldConfig := `{
+  "providers": {
+    "openai": {
+      "accounts": ["default"],
+      "base_url": ""
+    }
+  },
+  "profiles": {},
+  "default_profile": ""
+}`
+	configPath := filepath.Join(configDir, "config.json")
+	if err := os.WriteFile(configPath, []byte(oldConfig), 0644); err != nil {
+		t.Fatalf("WriteFile error = %v", err)
+	}
+
+	// Loading should error with helpful message
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatal("LoadConfig() should error on old format")
+	}
+	if !contains(err.Error(), "v0.3.0") {
+		t.Errorf("Error should mention v0.3.0, got: %v", err)
+	}
+}
+
+func TestIsOldConfigFormat(t *testing.T) {
+	tests := []struct {
+		name string
+		json string
+		want bool
+	}{
+		{
+			name: "old format with array accounts",
+			json: `{"providers": {"openai": {"accounts": ["default"]}}}`,
+			want: true,
+		},
+		{
+			name: "old format with base_url at provider level",
+			json: `{"providers": {"openai": {"accounts": [], "base_url": "http://example.com"}}}`,
+			want: true,
+		},
+		{
+			name: "new format with nested map accounts",
+			json: `{"providers": {"openai": {"accounts": {"default": {"base_url": "http://example.com"}}}}}`,
+			want: false,
+		},
+		{
+			name: "new format empty accounts",
+			json: `{"providers": {"openai": {"accounts": {}}}}`,
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isOldConfigFormat([]byte(tt.json))
+			if got != tt.want {
+				t.Errorf("isOldConfigFormat() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

@@ -36,15 +36,8 @@ type Profile struct {
 	Model    string `json:"model"`
 }
 
-// ProviderAccount stores credentials for a provider account.
-type ProviderAccount struct {
-	Name   string `json:"name"`
-	APIKey string `json:"api_key"` // Encrypted in storage
-}
-
 // ProviderInfo describes a configured provider.
 type ProviderInfo struct {
 	Name     string   `json:"name"`
 	Accounts []string `json:"accounts"`
-	BaseURL  string   `json:"base_url,omitempty"`
 }

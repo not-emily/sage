@@ -219,19 +219,19 @@ func SaveSecrets(secrets map[string]string) error {
 	return nil
 }
 
-// secretKey returns the map key for a provider:account pair.
-func secretKey(provider, account string) string {
-	return provider + ":" + account
+// secretKey returns the map key for a provider:account:field triplet.
+func secretKey(provider, account, field string) string {
+	return provider + ":" + account + ":" + field
 }
 
-// GetSecret returns a decrypted API key for the given provider and account.
-func GetSecret(provider, account string) (string, error) {
+// GetSecretField returns a decrypted secret field value.
+func GetSecretField(provider, account, field string) (string, error) {
 	secrets, err := LoadSecrets()
 	if err != nil {
 		return "", err
 	}
 
-	key := secretKey(provider, account)
+	key := secretKey(provider, account, field)
 	secret, ok := secrets[key]
 	if !ok {
 		return "", fmt.Errorf("no secret found for %s", key)
@@ -240,25 +240,25 @@ func GetSecret(provider, account string) (string, error) {
 	return secret, nil
 }
 
-// SetSecret encrypts and stores an API key.
-func SetSecret(provider, account, apiKey string) error {
+// SetSecretField encrypts and stores a secret field value.
+func SetSecretField(provider, account, field, value string) error {
 	secrets, err := LoadSecrets()
 	if err != nil {
 		return err
 	}
 
-	secrets[secretKey(provider, account)] = apiKey
+	secrets[secretKey(provider, account, field)] = value
 	return SaveSecrets(secrets)
 }
 
-// DeleteSecret removes an API key.
-func DeleteSecret(provider, account string) error {
+// DeleteSecretField removes a secret field.
+func DeleteSecretField(provider, account, field string) error {
 	secrets, err := LoadSecrets()
 	if err != nil {
 		return err
 	}
 
-	key := secretKey(provider, account)
+	key := secretKey(provider, account, field)
 	if _, ok := secrets[key]; !ok {
 		return fmt.Errorf("no secret found for %s", key)
 	}
@@ -267,13 +267,30 @@ func DeleteSecret(provider, account string) error {
 	return SaveSecrets(secrets)
 }
 
-// HasSecret checks if a secret exists for the given provider and account.
-func HasSecret(provider, account string) (bool, error) {
+// DeleteAccountSecrets removes all secrets for an account.
+func DeleteAccountSecrets(provider, account string) error {
+	secrets, err := LoadSecrets()
+	if err != nil {
+		return err
+	}
+
+	prefix := provider + ":" + account + ":"
+	for key := range secrets {
+		if len(key) > len(prefix) && key[:len(prefix)] == prefix {
+			delete(secrets, key)
+		}
+	}
+
+	return SaveSecrets(secrets)
+}
+
+// HasSecretField checks if a secret field exists.
+func HasSecretField(provider, account, field string) (bool, error) {
 	secrets, err := LoadSecrets()
 	if err != nil {
 		return false, err
 	}
 
-	_, ok := secrets[secretKey(provider, account)]
+	_, ok := secrets[secretKey(provider, account, field)]
 	return ok, nil
 }

@@ -72,9 +72,6 @@ func runProviderList(args []string) error {
 		for _, account := range p.Accounts {
 			fmt.Printf("  - %s\n", account)
 		}
-		if p.BaseURL != "" {
-			fmt.Printf("  base_url: %s\n", p.BaseURL)
-		}
 	}
 	return nil
 }
@@ -83,12 +80,12 @@ func runProviderAdd(args []string) error {
 	fs := flag.NewFlagSet("provider add", flag.ExitOnError)
 	account := fs.String("account", "default", "account name")
 	apiKeyEnv := fs.String("api-key-env", "", "environment variable containing API key")
-	baseURL := fs.String("base-url", "", "custom base URL (for proxies or compatible APIs)")
+	baseURLFlag := fs.String("base-url", "", "custom base URL (overrides prompt)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: sage provider add <provider> [flags]
 
-Add a provider account with an API key.
+Add a provider account. You will be prompted for required fields.
 
 Providers: %s
 
@@ -117,31 +114,45 @@ Examples:
 		return fmt.Errorf("unknown provider: %s\nSupported: %s", providerName, strings.Join(providers.List(), ", "))
 	}
 
-	// Get API key (optional for ollama)
-	var apiKey string
-	if providerName == "ollama" && *apiKeyEnv == "" {
-		// Ollama typically doesn't need an API key
-		fmt.Print("Enter API key (press Enter to skip for local Ollama): ")
-		key, err := readLine()
-		if err != nil {
-			return err
-		}
-		apiKey = strings.TrimSpace(key)
-	} else if *apiKeyEnv != "" {
-		apiKey = os.Getenv(*apiKeyEnv)
+	// Get provider field definitions
+	fieldDefs, err := sage.GetProviderFields(providerName)
+	if err != nil {
+		return err
+	}
+
+	// Sort fields: required first, then by original order
+	sortedFields := make([]sage.ProviderField, len(fieldDefs))
+	copy(sortedFields, fieldDefs)
+	sortFields(sortedFields)
+
+	// Build fields map, starting with flag overrides
+	fields := make(map[string]string)
+
+	// Apply flag overrides first
+	if *apiKeyEnv != "" {
+		apiKey := os.Getenv(*apiKeyEnv)
 		if apiKey == "" {
 			return fmt.Errorf("environment variable %s is not set", *apiKeyEnv)
 		}
-	} else {
-		// Interactive prompt
-		fmt.Print("Enter API key: ")
-		key, err := readLine()
+		fields["api_key"] = apiKey
+	}
+	if *baseURLFlag != "" {
+		fields["base_url"] = *baseURLFlag
+	}
+
+	// Prompt for each field that wasn't provided via flags
+	for _, f := range sortedFields {
+		// Skip if already provided via flag
+		if _, ok := fields[f.Key]; ok {
+			continue
+		}
+
+		value, err := promptForField(f)
 		if err != nil {
 			return err
 		}
-		apiKey = strings.TrimSpace(key)
-		if apiKey == "" && providerName != "ollama" {
-			return fmt.Errorf("API key required for %s", providerName)
+		if value != "" {
+			fields[f.Key] = value
 		}
 	}
 
@@ -150,28 +161,55 @@ Examples:
 		return err
 	}
 
-	// Add the provider account
-	if err := client.AddProviderAccount(providerName, *account, apiKey); err != nil {
+	// Add the provider account with fields
+	if err := client.AddProviderAccount(providerName, *account, fields); err != nil {
 		return err
-	}
-
-	// Update base URL if provided
-	if *baseURL != "" {
-		// Need to update config directly for base URL
-		config, err := sage.LoadConfig()
-		if err != nil {
-			return err
-		}
-		providerConfig := config.Providers[providerName]
-		providerConfig.BaseURL = *baseURL
-		config.Providers[providerName] = providerConfig
-		if err := config.Save(); err != nil {
-			return err
-		}
 	}
 
 	fmt.Printf("Added %s:%s\n", providerName, *account)
 	return nil
+}
+
+// sortFields sorts fields with required fields first, preserving original order within each group.
+func sortFields(fields []sage.ProviderField) {
+	// Simple stable sort: required fields first
+	n := len(fields)
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			// Swap if fields[j] is required and fields[i] is not
+			if fields[j].Required && !fields[i].Required {
+				fields[i], fields[j] = fields[j], fields[i]
+			}
+		}
+	}
+}
+
+// promptForField prompts the user for a field value and returns it.
+func promptForField(f sage.ProviderField) (string, error) {
+	// Build prompt: "Label" or "Label (optional)" or "Label [default]" or "Label (optional) [default]"
+	prompt := f.Label
+	if !f.Required {
+		prompt += " (optional)"
+	}
+	if f.Default != "" {
+		prompt += fmt.Sprintf(" [%s]", f.Default)
+	}
+	prompt += ": "
+
+	fmt.Print(prompt)
+
+	value, err := readLine()
+	if err != nil {
+		return "", err
+	}
+	value = strings.TrimSpace(value)
+
+	// Apply default if empty and default exists
+	if value == "" && f.Default != "" {
+		return f.Default, nil
+	}
+
+	return value, nil
 }
 
 func runProviderRemove(args []string) error {

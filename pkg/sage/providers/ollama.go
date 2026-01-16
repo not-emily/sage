@@ -27,6 +27,13 @@ func (o *ollama) Name() string {
 	return "ollama"
 }
 
+func (o *ollama) Fields() []ProviderField {
+	return []ProviderField{
+		{Key: "base_url", Label: "Base URL", Required: true, Secret: false, Default: "http://localhost:11434"},
+		{Key: "api_key", Label: "API Key", Required: false, Secret: true},
+	}
+}
+
 // Ollama API request/response types
 
 type ollamaRequest struct {

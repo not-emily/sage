@@ -161,7 +161,7 @@ func TestSecrets_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetGetDeleteSecret(t *testing.T) {
+func TestSetGetDeleteSecretField(t *testing.T) {
 	tmp := t.TempDir()
 	t.Setenv("HOME", tmp)
 
@@ -170,37 +170,66 @@ func TestSetGetDeleteSecret(t *testing.T) {
 	}
 
 	// Set
-	if err := SetSecret("openai", "work", "sk-work-key"); err != nil {
-		t.Fatalf("SetSecret() error = %v", err)
+	if err := SetSecretField("openai", "work", "api_key", "sk-work-key"); err != nil {
+		t.Fatalf("SetSecretField() error = %v", err)
 	}
 
 	// Get
-	secret, err := GetSecret("openai", "work")
+	secret, err := GetSecretField("openai", "work", "api_key")
 	if err != nil {
-		t.Fatalf("GetSecret() error = %v", err)
+		t.Fatalf("GetSecretField() error = %v", err)
 	}
 	if secret != "sk-work-key" {
-		t.Errorf("GetSecret() = %q, want %q", secret, "sk-work-key")
+		t.Errorf("GetSecretField() = %q, want %q", secret, "sk-work-key")
 	}
 
-	// HasSecret
-	has, err := HasSecret("openai", "work")
+	// HasSecretField
+	has, err := HasSecretField("openai", "work", "api_key")
 	if err != nil {
-		t.Fatalf("HasSecret() error = %v", err)
+		t.Fatalf("HasSecretField() error = %v", err)
 	}
 	if !has {
-		t.Error("HasSecret() should return true")
+		t.Error("HasSecretField() should return true")
 	}
 
 	// Delete
-	if err := DeleteSecret("openai", "work"); err != nil {
-		t.Fatalf("DeleteSecret() error = %v", err)
+	if err := DeleteSecretField("openai", "work", "api_key"); err != nil {
+		t.Fatalf("DeleteSecretField() error = %v", err)
 	}
 
 	// Verify deleted
-	_, err = GetSecret("openai", "work")
+	_, err = GetSecretField("openai", "work", "api_key")
 	if err == nil {
-		t.Error("GetSecret() should error after delete")
+		t.Error("GetSecretField() should error after delete")
+	}
+}
+
+func TestDeleteAccountSecrets(t *testing.T) {
+	tmp := t.TempDir()
+	t.Setenv("HOME", tmp)
+
+	if err := InitSecrets(); err != nil {
+		t.Fatalf("InitSecrets() error = %v", err)
+	}
+
+	// Set multiple secrets for same account
+	if err := SetSecretField("openai", "work", "api_key", "sk-key"); err != nil {
+		t.Fatalf("SetSecretField() error = %v", err)
+	}
+	if err := SetSecretField("openai", "work", "other_secret", "other-value"); err != nil {
+		t.Fatalf("SetSecretField() error = %v", err)
+	}
+
+	// Delete all account secrets
+	if err := DeleteAccountSecrets("openai", "work"); err != nil {
+		t.Fatalf("DeleteAccountSecrets() error = %v", err)
+	}
+
+	// Verify both deleted
+	has1, _ := HasSecretField("openai", "work", "api_key")
+	has2, _ := HasSecretField("openai", "work", "other_secret")
+	if has1 || has2 {
+		t.Error("All account secrets should be deleted")
 	}
 }
 

@@ -6,6 +6,15 @@ import (
 	"sort"
 )
 
+// ProviderField describes a configuration field required by a provider.
+type ProviderField struct {
+	Key      string `json:"key"`               // e.g., "api_key", "base_url"
+	Label    string `json:"label"`             // e.g., "API Key", "Base URL"
+	Required bool   `json:"required"`
+	Secret   bool   `json:"secret"`            // stored in encrypted secrets
+	Default  string `json:"default,omitempty"` // e.g., "http://localhost:11434"
+}
+
 // Provider is implemented by each LLM provider.
 type Provider interface {
 	// Name returns the provider identifier (e.g., "openai", "anthropic").
@@ -19,6 +28,9 @@ type Provider interface {
 
 	// ListModels returns available models from this provider.
 	ListModels(apiKey, baseURL string) ([]ModelInfo, error)
+
+	// Fields returns the configuration fields required by this provider.
+	Fields() []ProviderField
 }
 
 // ModelInfo describes an available model.
