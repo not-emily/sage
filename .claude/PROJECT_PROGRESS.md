@@ -8,10 +8,10 @@ Latest Weekly Report: [weekly-2026-W01.md](../docs/reports/weekly-2026-W01.md)
 Last Updated: 2026-01-16
 
 ## Current Focus
-CLI JSON Output & Release Infrastructure (v0.4.0) - All phases complete, ready for release
+v0.4.0 released - Ready for next feature
 
 ## Active Tasks
-- [NEXT] Tag and release v0.4.0
+None - awaiting direction
 
 ## Open Questions/Blockers
 None
@@ -19,6 +19,7 @@ None
 ## Completed This Week
 - Tagged and released v0.3.0
 - Tagged and released v0.3.1 (OpenAI base_url fix + version injection)
+- Tagged and released v0.4.0 (CLI JSON output, release infrastructure)
 - Phase 1: JSON Streaming (v0.4.0)
   - Added --stream flag to complete command
   - Implemented NDJSON output for --json --stream
@@ -70,4 +71,4 @@ None
   - All tests passing, build successful
 
 ## Next Session
-Tag v0.4.0, create GitHub release with binaries, archive plan files.
+Integrate sage with hub-core, or start next feature.
