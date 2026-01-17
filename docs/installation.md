@@ -1,11 +1,38 @@
 # Installation
 
-## Prerequisites
+## Pre-compiled Binaries (Recommended)
 
-- Go 1.21+ (for building from source or library usage)
-- No external dependencies (stdlib only)
+Download the latest binary for your platform:
 
-## Install from Source
+```bash
+# Linux (amd64)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-linux-amd64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+
+# Linux (arm64)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-linux-arm64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+
+# macOS (Apple Silicon)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-darwin-arm64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+
+# macOS (Intel)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-darwin-amd64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+```
+
+Or install to a user directory (no sudo required):
+
+```bash
+mkdir -p ~/.local/bin
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-linux-amd64 \
+  -o ~/.local/bin/sage && chmod +x ~/.local/bin/sage
+```
+
+Ensure `~/.local/bin` is in your PATH.
+
+## From Source (requires Go 1.21+)
 
 ```bash
 go install github.com/not-emily/sage/cmd/sage@latest

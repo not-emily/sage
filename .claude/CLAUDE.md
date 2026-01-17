@@ -41,3 +41,4 @@ This reduces permission prompts and ensures consistency.
 
 Available scripts:
 - `scripts/build.sh` — Build the sage CLI binary to `bin/sage`
+- `scripts/release.sh [version]` — Cross-compile for all platforms to `dist/`

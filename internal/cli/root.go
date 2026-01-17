@@ -2,14 +2,29 @@
 package cli
 
 import (
+	"encoding/json"
+	"flag"
 	"fmt"
+	"os"
 )
 
 // Version is set at build time via ldflags.
 var Version = "dev"
 
+// JSONOutput is set to true when --json flag is detected.
+// Used by main.go to format errors as JSON.
+var JSONOutput bool
+
 // Run executes the CLI with the given arguments.
 func Run(args []string) error {
+	// Pre-scan for --json flag so we can format errors correctly
+	for _, arg := range args {
+		if arg == "--json" || arg == "-json" {
+			JSONOutput = true
+			break
+		}
+	}
+
 	if len(args) == 0 {
 		return showHelp()
 	}
@@ -24,7 +39,7 @@ func Run(args []string) error {
 	case "profile":
 		return runProfile(args[1:])
 	case "version":
-		return showVersion()
+		return runVersion(args[1:])
 	case "help", "-h", "--help":
 		return showHelp()
 	default:
@@ -32,7 +47,24 @@ func Run(args []string) error {
 	}
 }
 
-func showVersion() error {
+func runVersion(args []string) error {
+	fs := flag.NewFlagSet("version", flag.ExitOnError)
+	jsonOutput := fs.Bool("json", false, "output JSON")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: sage version [--json]\n")
+	}
+
+	fs.Parse(args)
+
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]string{
+			"version": Version,
+		})
+	}
+
 	fmt.Printf("sage %s\n", Version)
 	return nil
 }

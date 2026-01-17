@@ -38,7 +38,27 @@ sage complete "Hello, world!"
 
 ## Installation
 
-### From source
+### Download binary (recommended)
+
+```bash
+# Linux (amd64)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-linux-amd64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+
+# Linux (arm64)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-linux-arm64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+
+# macOS (Apple Silicon)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-darwin-arm64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+
+# macOS (Intel)
+curl -L https://github.com/not-emily/sage/releases/latest/download/sage-darwin-amd64 \
+  -o /usr/local/bin/sage && chmod +x /usr/local/bin/sage
+```
+
+### From source (requires Go 1.21+)
 
 ```bash
 go install github.com/not-emily/sage/cmd/sage@latest

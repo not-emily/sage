@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -54,12 +55,25 @@ Examples:
 }
 
 func runProviderList(args []string) error {
+	fs := flag.NewFlagSet("provider list", flag.ExitOnError)
+	jsonOutput := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
 	client, err := sage.NewClient()
 	if err != nil {
 		return err
 	}
 
 	providerList := client.ListProviders()
+
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"providers": providerList,
+		})
+	}
+
 	if len(providerList) == 0 {
 		fmt.Println("No providers configured.")
 		fmt.Println("\nAvailable providers:", strings.Join(providers.List(), ", "))
@@ -81,6 +95,7 @@ func runProviderAdd(args []string) error {
 	account := fs.String("account", "default", "account name")
 	apiKeyEnv := fs.String("api-key-env", "", "environment variable containing API key")
 	baseURLFlag := fs.String("base-url", "", "custom base URL (overrides prompt)")
+	jsonOutput := fs.Bool("json", false, "output JSON")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: sage provider add <provider> [flags]
@@ -166,6 +181,16 @@ Examples:
 		return err
 	}
 
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"success":  true,
+			"provider": providerName,
+			"account":  *account,
+		})
+	}
+
 	fmt.Printf("Added %s:%s\n", providerName, *account)
 	return nil
 }
@@ -215,6 +240,7 @@ func promptForField(f sage.ProviderField) (string, error) {
 func runProviderRemove(args []string) error {
 	fs := flag.NewFlagSet("provider remove", flag.ExitOnError)
 	account := fs.String("account", "default", "account name to remove")
+	jsonOutput := fs.Bool("json", false, "output JSON")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: sage provider remove <provider> [flags]
@@ -241,6 +267,16 @@ Flags:
 
 	if err := client.RemoveProviderAccount(providerName, *account); err != nil {
 		return err
+	}
+
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"success":  true,
+			"provider": providerName,
+			"account":  *account,
+		})
 	}
 
 	fmt.Printf("Removed %s:%s\n", providerName, *account)

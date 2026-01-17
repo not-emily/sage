@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -50,6 +51,10 @@ Examples:
 }
 
 func runProfileList(args []string) error {
+	fs := flag.NewFlagSet("profile list", flag.ExitOnError)
+	jsonOutput := fs.Bool("json", false, "output JSON")
+	fs.Parse(args)
+
 	client, err := sage.NewClient()
 	if err != nil {
 		return err
@@ -57,6 +62,26 @@ func runProfileList(args []string) error {
 
 	profiles := client.ListProfiles()
 	defaultProfile := client.GetDefaultProfile()
+
+	if *jsonOutput {
+		// Build profile list with is_default field
+		profileList := make([]map[string]interface{}, len(profiles))
+		for i, p := range profiles {
+			profileList[i] = map[string]interface{}{
+				"name":       p.Name,
+				"provider":   p.Provider,
+				"account":    p.Account,
+				"model":      p.Model,
+				"is_default": p.Name == defaultProfile,
+			}
+		}
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"profiles": profileList,
+			"default":  defaultProfile,
+		})
+	}
 
 	if len(profiles) == 0 {
 		fmt.Println("No profiles configured.")
@@ -82,6 +107,7 @@ func runProfileAdd(args []string) error {
 	provider := fs.String("provider", "", "provider name (required)")
 	account := fs.String("account", "default", "provider account")
 	model := fs.String("model", "", "model name (required)")
+	jsonOutput := fs.Bool("json", false, "output JSON")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: sage profile add <name> --provider=X --model=Y [--account=Z]
@@ -135,15 +161,34 @@ Examples:
 		return err
 	}
 
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"success": true,
+			"profile": profileName,
+		})
+	}
+
 	fmt.Printf("Profile '%s' created\n", profileName)
 	return nil
 }
 
 func runProfileRemove(args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("usage: sage profile remove <name>")
+	fs := flag.NewFlagSet("profile remove", flag.ExitOnError)
+	jsonOutput := fs.Bool("json", false, "output JSON")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: sage profile remove <name> [--json]\n")
 	}
-	profileName := args[0]
+
+	fs.Parse(reorderArgs(args))
+
+	if fs.NArg() < 1 {
+		fs.Usage()
+		return fmt.Errorf("profile name required")
+	}
+	profileName := fs.Arg(0)
 
 	client, err := sage.NewClient()
 	if err != nil {
@@ -154,15 +199,34 @@ func runProfileRemove(args []string) error {
 		return err
 	}
 
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"success": true,
+			"profile": profileName,
+		})
+	}
+
 	fmt.Printf("Profile '%s' removed\n", profileName)
 	return nil
 }
 
 func runProfileSetDefault(args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("usage: sage profile set-default <name>")
+	fs := flag.NewFlagSet("profile set-default", flag.ExitOnError)
+	jsonOutput := fs.Bool("json", false, "output JSON")
+
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: sage profile set-default <name> [--json]\n")
 	}
-	profileName := args[0]
+
+	fs.Parse(reorderArgs(args))
+
+	if fs.NArg() < 1 {
+		fs.Usage()
+		return fmt.Errorf("profile name required")
+	}
+	profileName := fs.Arg(0)
 
 	client, err := sage.NewClient()
 	if err != nil {
@@ -171,6 +235,14 @@ func runProfileSetDefault(args []string) error {
 
 	if err := client.SetDefaultProfile(profileName); err != nil {
 		return err
+	}
+
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"default": profileName,
+		})
 	}
 
 	fmt.Printf("Default profile set to '%s'\n", profileName)

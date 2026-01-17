@@ -18,6 +18,7 @@ func runComplete(args []string) error {
 	system := fs.String("system", "", "system message")
 	maxTokens := fs.Int("max-tokens", 0, "maximum tokens to generate")
 	jsonOutput := fs.Bool("json", false, "output JSON instead of streaming")
+	stream := fs.Bool("stream", false, "stream output (use with --json for NDJSON)")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: sage complete [flags] [prompt]
@@ -34,6 +35,7 @@ Examples:
   sage complete "Hello, world!"
   sage complete --profile=big_brain "Explain quantum computing"
   sage complete --json "What is 2+2?"
+  sage complete --json --stream "Hello"   # NDJSON streaming
   echo "Summarize this" | sage complete
 `)
 	}
@@ -56,6 +58,15 @@ Examples:
 		Prompt:    prompt,
 		System:    *system,
 		MaxTokens: *maxTokens,
+	}
+
+	if *jsonOutput && *stream {
+		// Get model from profile for NDJSON output
+		p, err := client.GetProfile(*profile)
+		if err != nil {
+			return err
+		}
+		return completeStreamJSON(client, *profile, p.Model, req)
 	}
 
 	if *jsonOutput {
@@ -83,6 +94,35 @@ func completeJSON(client *sage.Client, profile string, req sage.Request) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(output)
+}
+
+func completeStreamJSON(client *sage.Client, profile, model string, req sage.Request) error {
+	chunks, err := client.CompleteStream(profile, req)
+	if err != nil {
+		return err
+	}
+
+	enc := json.NewEncoder(os.Stdout)
+	for chunk := range chunks {
+		if chunk.Error != nil {
+			return chunk.Error
+		}
+
+		output := map[string]interface{}{
+			"content": chunk.Content,
+			"done":    chunk.Done,
+		}
+
+		// Include model on final chunk
+		if chunk.Done {
+			output["model"] = model
+			// TODO: Add usage stats once providers support it in streaming mode
+		}
+
+		enc.Encode(output)
+	}
+
+	return nil
 }
 
 func completeStream(client *sage.Client, profile string, req sage.Request) error {

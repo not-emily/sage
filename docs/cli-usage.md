@@ -14,6 +14,10 @@ Commands:
   help        Show help
 ```
 
+## Global Flags
+
+All commands support `--json` for machine-readable output. When `--json` is used, errors are also returned as JSON to stdout.
+
 ## Init Command
 
 Initialize sage configuration and encryption key.
@@ -41,7 +45,10 @@ sage complete [flags] <prompt>
 | Flag | Description |
 |------|-------------|
 | `--profile` | Profile to use (default: configured default) |
+| `--system` | System message |
+| `--max-tokens` | Maximum tokens to generate |
 | `--json` | Output full response as JSON instead of streaming |
+| `--stream` | Stream output (use with `--json` for NDJSON) |
 
 ### Examples
 
@@ -54,6 +61,9 @@ sage complete --profile=claude "Write a haiku about Go"
 
 # JSON output (for scripting)
 sage complete --json "What is 2+2?"
+
+# NDJSON streaming (for real-time machine parsing)
+sage complete --json --stream "Hello"
 
 # Read prompt from stdin
 echo "Translate to French: Hello" | sage complete
@@ -72,7 +82,7 @@ EOF
 
 **Streaming (default)**: Text streams to stdout as it's generated.
 
-**JSON mode** (`--json`): Returns full response:
+**JSON mode** (`--json`): Buffers and returns full response:
 ```json
 {
   "content": "The answer is 4.",
@@ -83,6 +93,20 @@ EOF
   }
 }
 ```
+
+**NDJSON streaming** (`--json --stream`): Real-time JSON streaming, one object per line:
+```json
+{"content":"Hello","done":false}
+{"content":"!","done":false}
+{"content":" How","done":false}
+{"content":" can","done":false}
+{"content":" I","done":false}
+{"content":" help","done":false}
+{"content":"?","done":false}
+{"content":"","done":true,"model":"gpt-4o"}
+```
+
+Each line is valid JSON. The final chunk has `"done":true` and includes the model name.
 
 ## Provider Commands
 
@@ -116,6 +140,16 @@ openai:
   - work
 anthropic:
   - default
+```
+
+**JSON output** (`--json`):
+```json
+{
+  "providers": [
+    {"name": "openai", "accounts": ["default", "work"]},
+    {"name": "anthropic", "accounts": ["default"]}
+  ]
+}
 ```
 
 ### provider add
@@ -153,6 +187,15 @@ sage provider add ollama
 sage provider add ollama --base-url=http://server:11434
 ```
 
+**JSON output** (`--json`):
+```json
+{
+  "success": true,
+  "provider": "openai",
+  "account": "default"
+}
+```
+
 ### provider remove
 
 ```bash
@@ -167,6 +210,42 @@ Examples:
 
 ```bash
 sage provider remove openai --account=work
+```
+
+**JSON output** (`--json`):
+```json
+{
+  "success": true,
+  "provider": "openai",
+  "account": "work"
+}
+```
+
+### provider models
+
+List available models from a provider.
+
+```bash
+sage provider models <provider> [--account=NAME]
+```
+
+Examples:
+
+```bash
+sage provider models openai
+sage provider models ollama
+sage provider models openai --account=work
+```
+
+**JSON output** (`--json`):
+```json
+{
+  "provider": "openai",
+  "models": [
+    {"id": "gpt-4o", "name": "gpt-4o"},
+    {"id": "gpt-4o-mini", "name": "gpt-4o-mini"}
+  ]
+}
 ```
 
 ## Profile Commands
@@ -205,6 +284,18 @@ smart
   model:    claude-sonnet-4-20250514
 ```
 
+**JSON output** (`--json`):
+```json
+{
+  "default": "fast",
+  "profiles": [
+    {"name": "default", "provider": "openai", "account": "default", "model": "gpt-4o-mini", "is_default": false},
+    {"name": "fast", "provider": "openai", "account": "default", "model": "gpt-4o-mini", "is_default": true},
+    {"name": "smart", "provider": "anthropic", "account": "default", "model": "claude-sonnet-4-20250514", "is_default": false}
+  ]
+}
+```
+
 ### profile add
 
 ```bash
@@ -233,6 +324,14 @@ sage profile add claude --provider=anthropic --model=claude-sonnet-4-20250514
 sage profile add local --provider=ollama --model=llama3.2
 ```
 
+**JSON output** (`--json`):
+```json
+{
+  "success": true,
+  "profile": "default"
+}
+```
+
 ### profile remove
 
 ```bash
@@ -241,6 +340,14 @@ sage profile remove <name>
 
 Note: Cannot remove the default profile. Set a different default first.
 
+**JSON output** (`--json`):
+```json
+{
+  "success": true,
+  "profile": "myprofile"
+}
+```
+
 ### profile set-default
 
 ```bash
@@ -248,6 +355,38 @@ sage profile set-default <name>
 ```
 
 Sets which profile is used when `--profile` is not specified.
+
+**JSON output** (`--json`):
+```json
+{
+  "default": "fast"
+}
+```
+
+## Version Command
+
+```bash
+sage version [--json]
+```
+
+**JSON output** (`--json`):
+```json
+{
+  "version": "v0.4.0"
+}
+```
+
+## Error Handling
+
+When `--json` is used and an error occurs, the error is returned as JSON to stdout:
+
+```json
+{
+  "error": "profile not found: nonexistent"
+}
+```
+
+The exit code will still be non-zero (1) for errors.
 
 ## Environment Variables
 

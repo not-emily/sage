@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 func runProviderModels(args []string) error {
 	fs := flag.NewFlagSet("provider models", flag.ExitOnError)
 	account := fs.String("account", "", "provider account to use (defaults to first configured)")
+	jsonOutput := fs.Bool("json", false, "output JSON")
 
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage: sage provider models <provider> [flags]
@@ -54,6 +56,15 @@ Examples:
 	models, err := client.ListModels(providerName, *account)
 	if err != nil {
 		return fmt.Errorf("failed to list models: %w", err)
+	}
+
+	if *jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]interface{}{
+			"provider": providerName,
+			"models":   models,
+		})
 	}
 
 	if len(models) == 0 {
