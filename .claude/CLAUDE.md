@@ -42,3 +42,22 @@ This reduces permission prompts and ensures consistency.
 Available scripts:
 - `scripts/build.sh` — Build the sage CLI binary to `bin/sage`
 - `scripts/release.sh [version]` — Cross-compile for all platforms to `dist/`
+
+## Release Process
+**CRITICAL: Tag first, then build!** The version is embedded at build time via ldflags.
+
+```bash
+# 1. Create and push the tag FIRST
+git tag v0.x.x
+git push origin v0.x.x
+
+# 2. Build binaries (will embed the tag version)
+./scripts/release.sh v0.x.x
+
+# 3. Create GitHub release with binaries
+gh release create v0.x.x dist/* \
+  --title "v0.x.x" \
+  --notes "Release notes here"
+```
+
+If you build before tagging, binaries will have the wrong version embedded and must be rebuilt.
