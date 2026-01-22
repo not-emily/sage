@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"context"
 	"testing"
 )
 
@@ -11,18 +12,18 @@ type mockProvider struct {
 
 func (m *mockProvider) Name() string { return m.name }
 
-func (m *mockProvider) Complete(req Request) (*Response, error) {
+func (m *mockProvider) Complete(ctx context.Context, req Request) (*Response, error) {
 	return &Response{Content: "mock response", Model: req.Model}, nil
 }
 
-func (m *mockProvider) CompleteStream(req Request) (<-chan Chunk, error) {
+func (m *mockProvider) CompleteStream(ctx context.Context, req Request) (<-chan Chunk, error) {
 	ch := make(chan Chunk, 1)
 	ch <- Chunk{Content: "mock", Done: true}
 	close(ch)
 	return ch, nil
 }
 
-func (m *mockProvider) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+func (m *mockProvider) ListModels(ctx context.Context, apiKey, baseURL string) ([]ModelInfo, error) {
 	return []ModelInfo{{ID: "mock-model", Name: "Mock Model"}}, nil
 }
 
@@ -110,8 +111,10 @@ func TestProviderInterface(t *testing.T) {
 
 	p := &mockProvider{name: "test"}
 
+	ctx := context.Background()
+
 	// Test Complete
-	resp, err := p.Complete(Request{Model: "test-model", Prompt: "hello"})
+	resp, err := p.Complete(ctx, Request{Model: "test-model", Prompt: "hello"})
 	if err != nil {
 		t.Fatalf("Complete() error = %v", err)
 	}
@@ -120,7 +123,7 @@ func TestProviderInterface(t *testing.T) {
 	}
 
 	// Test CompleteStream
-	ch, err := p.CompleteStream(Request{Model: "test-model", Prompt: "hello"})
+	ch, err := p.CompleteStream(ctx, Request{Model: "test-model", Prompt: "hello"})
 	if err != nil {
 		t.Fatalf("CompleteStream() error = %v", err)
 	}

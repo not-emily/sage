@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -53,7 +54,8 @@ Examples:
 		return err
 	}
 
-	models, err := client.ListModels(providerName, *account)
+	ctx := context.Background()
+	models, err := client.ListModels(ctx, providerName, *account)
 	if err != nil {
 		return fmt.Errorf("failed to list models: %w", err)
 	}

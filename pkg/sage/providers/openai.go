@@ -3,6 +3,7 @@ package providers
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -71,7 +72,7 @@ type openaiError struct {
 	Code    string `json:"code"`
 }
 
-func (o *openai) Complete(req Request) (*Response, error) {
+func (o *openai) Complete(ctx context.Context, req Request) (*Response, error) {
 	body := o.buildRequest(req, false)
 
 	jsonBody, err := json.Marshal(body)
@@ -79,14 +80,14 @@ func (o *openai) Complete(req Request) (*Response, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", o.endpoint(req), bytes.NewReader(jsonBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", o.endpoint(req), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	o.setHeaders(httpReq, req.APIKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := req.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -115,7 +116,7 @@ func (o *openai) Complete(req Request) (*Response, error) {
 	}, nil
 }
 
-func (o *openai) CompleteStream(req Request) (<-chan Chunk, error) {
+func (o *openai) CompleteStream(ctx context.Context, req Request) (<-chan Chunk, error) {
 	body := o.buildRequest(req, true)
 
 	jsonBody, err := json.Marshal(body)
@@ -123,14 +124,14 @@ func (o *openai) CompleteStream(req Request) (<-chan Chunk, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", o.endpoint(req), bytes.NewReader(jsonBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", o.endpoint(req), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	o.setHeaders(httpReq, req.APIKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := req.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -148,6 +149,14 @@ func (o *openai) CompleteStream(req Request) (<-chan Chunk, error) {
 
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				ch <- Chunk{Error: ctx.Err()}
+				return
+			default:
+			}
+
 			line := scanner.Text()
 
 			// Skip empty lines
@@ -265,13 +274,13 @@ func (o *openai) handleError(resp *http.Response) error {
 }
 
 // ListModels returns available models from OpenAI.
-func (o *openai) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+func (o *openai) ListModels(ctx context.Context, apiKey, baseURL string) ([]ModelInfo, error) {
 	endpoint := "https://api.openai.com/v1/models"
 	if baseURL != "" {
 		endpoint = strings.TrimSuffix(baseURL, "/") + "/models"
 	}
 
-	req, err := http.NewRequest("GET", endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

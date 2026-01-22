@@ -1,16 +1,34 @@
 package sage
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"sort"
+	"time"
 
 	"github.com/not-emily/sage/pkg/sage/providers"
 )
 
 // Client provides the high-level API for LLM completions.
 type Client struct {
-	config  *Config
-	secrets map[string]string
+	config     *Config
+	secrets    map[string]string
+	HTTPClient *http.Client // Optional HTTP client; nil uses defaultHTTPClient()
+}
+
+// defaultHTTPClient returns an HTTP client with sensible timeouts.
+func defaultHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 5 * time.Minute, // Reasonable for LLM requests
+		Transport: &http.Transport{
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   10,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+		},
+	}
 }
 
 // NewClient creates a new client, loading config and secrets.
@@ -25,15 +43,23 @@ func NewClient() (*Client, error) {
 		return nil, fmt.Errorf("failed to load secrets: %w", err)
 	}
 
-	return &Client{
+	client := &Client{
 		config:  config,
 		secrets: secrets,
-	}, nil
+	}
+
+	// Set default HTTP client if not provided
+	if client.HTTPClient == nil {
+		client.HTTPClient = defaultHTTPClient()
+	}
+
+	return client, nil
 }
 
 // Complete sends a completion request using the specified profile.
 // If profileName is empty, the default profile is used.
-func (c *Client) Complete(profileName string, req Request) (*Response, error) {
+// ctx is used for cancellation and timeout control.
+func (c *Client) Complete(ctx context.Context, profileName string, req Request) (*Response, error) {
 	providerReq, err := c.buildProviderRequest(profileName, req)
 	if err != nil {
 		return nil, err
@@ -45,7 +71,7 @@ func (c *Client) Complete(profileName string, req Request) (*Response, error) {
 		return nil, err
 	}
 
-	providerResp, err := provider.Complete(providerReq)
+	providerResp, err := provider.Complete(ctx, providerReq)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +88,8 @@ func (c *Client) Complete(profileName string, req Request) (*Response, error) {
 
 // CompleteStream sends a streaming completion request.
 // If profileName is empty, the default profile is used.
-func (c *Client) CompleteStream(profileName string, req Request) (<-chan Chunk, error) {
+// ctx is used for cancellation; allows stopping streaming mid-request.
+func (c *Client) CompleteStream(ctx context.Context, profileName string, req Request) (<-chan Chunk, error) {
 	providerReq, err := c.buildProviderRequest(profileName, req)
 	if err != nil {
 		return nil, err
@@ -74,7 +101,7 @@ func (c *Client) CompleteStream(profileName string, req Request) (<-chan Chunk, 
 		return nil, err
 	}
 
-	providerCh, err := provider.CompleteStream(providerReq)
+	providerCh, err := provider.CompleteStream(ctx, providerReq)
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +141,13 @@ func (c *Client) buildProviderRequest(profileName string, req Request) (provider
 	}
 
 	return providers.Request{
-		Model:     profile.Model,
-		System:    req.System,
-		Prompt:    req.Prompt,
-		MaxTokens: req.MaxTokens,
-		APIKey:    apiKey,
-		BaseURL:   baseURL,
+		Model:      profile.Model,
+		System:     req.System,
+		Prompt:     req.Prompt,
+		MaxTokens:  req.MaxTokens,
+		APIKey:     apiKey,
+		BaseURL:    baseURL,
+		HTTPClient: c.HTTPClient,
 	}, nil
 }
 
@@ -308,7 +336,8 @@ type ModelInfo struct {
 
 // ListModels returns available models from a provider.
 // If account is empty, uses the first configured account.
-func (c *Client) ListModels(providerName, account string) ([]ModelInfo, error) {
+// ctx is used for cancellation and timeout control.
+func (c *Client) ListModels(ctx context.Context, providerName, account string) ([]ModelInfo, error) {
 	provider, err := providers.Get(providerName)
 	if err != nil {
 		return nil, err
@@ -336,7 +365,7 @@ func (c *Client) ListModels(providerName, account string) ([]ModelInfo, error) {
 		}
 	}
 
-	providerModels, err := provider.ListModels(apiKey, baseURL)
+	providerModels, err := provider.ListModels(ctx, apiKey, baseURL)
 	if err != nil {
 		return nil, err
 	}

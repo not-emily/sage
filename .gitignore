@@ -11,3 +11,6 @@ dist/
 
 # OS
 .DS_Store
+
+# Audits (keep security assessments private)
+docs/audits/

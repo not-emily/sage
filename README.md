@@ -75,39 +75,155 @@ cd sage
 
 ## Library Usage
 
-```go
-import "github.com/not-emily/sage/pkg/sage"
+### Basic Example
 
+```go
+import (
+    "context"
+    "fmt"
+
+    "github.com/not-emily/sage/pkg/sage"
+)
+
+func main() {
+    // Create client
+    client, _ := sage.NewClient()
+
+    // Add provider account
+    client.AddProviderAccount("openai", "default", map[string]string{
+        "api_key": "sk-...",
+    })
+
+    // Create profile
+    client.AddProfile("myprofile", sage.Profile{
+        Provider: "openai",
+        Account:  "default",
+        Model:    "gpt-4o-mini",
+    })
+
+    // Make completion with context
+    ctx := context.Background()
+    resp, err := client.Complete(ctx, "myprofile", sage.Request{
+        Prompt: "Hello!",
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(resp.Content)
+}
+```
+
+### Timeout Example
+
+```go
+import (
+    "context"
+    "time"
+)
+
+// Set 30-second timeout for completion
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+resp, err := client.Complete(ctx, "myprofile", sage.Request{
+    Prompt: "Generate a long essay...",
+})
+if err != nil {
+    // Handle timeout or other errors
+    panic(err)
+}
+```
+
+### Cancellation Example
+
+```go
+import (
+    "context"
+    "time"
+)
+
+ctx, cancel := context.WithCancel(context.Background())
+
+// Cancel after 10 seconds
+go func() {
+    time.Sleep(10 * time.Second)
+    cancel()
+}()
+
+resp, err := client.Complete(ctx, "myprofile", sage.Request{
+    Prompt: "This might take a while...",
+})
+if err == context.Canceled {
+    fmt.Println("Request was canceled")
+}
+```
+
+### Custom HTTP Client
+
+```go
+import (
+    "net/http"
+    "time"
+)
+
+// Configure custom HTTP client with specific timeouts
+client, _ := sage.NewClient()
+client.HTTPClient = &http.Client{
+    Timeout: 2 * time.Minute,
+    Transport: &http.Transport{
+        MaxIdleConns:        50,
+        IdleConnTimeout:     60 * time.Second,
+        TLSHandshakeTimeout: 5 * time.Second,
+    },
+}
+
+ctx := context.Background()
+resp, err := client.Complete(ctx, "myprofile", sage.Request{
+    Prompt: "Hello!",
+})
+```
+
+### Streaming Example
+
+```go
+import (
+    "context"
+    "fmt"
+)
+
+ctx := context.Background()
+chunks, err := client.CompleteStream(ctx, "myprofile", sage.Request{
+    Prompt: "Write a story...",
+})
+if err != nil {
+    panic(err)
+}
+
+for chunk := range chunks {
+    if chunk.Error != nil {
+        panic(chunk.Error)
+    }
+    if chunk.Done {
+        break
+    }
+    fmt.Print(chunk.Content)
+}
+fmt.Println()
+```
+
+### Provider Field Requirements
+
+```go
 // Query provider field requirements
 fields, _ := sage.GetProviderFields("openai")
 for _, f := range fields {
-    fmt.Printf("%s (required=%v, secret=%v)\n", f.Label, f.Required, f.Secret)
+    fmt.Printf("%s (required=%v, secret=%v, default=%s)\n",
+        f.Label, f.Required, f.Secret, f.Default)
 }
-
-// Create client
-client, _ := sage.NewClient()
-
-// Add provider with fields
-client.AddProviderAccount("openai", "default", map[string]string{
-    "api_key": "sk-...",
-})
-
-// Add Ollama (different required fields)
-client.AddProviderAccount("ollama", "local", map[string]string{
-    "base_url": "http://localhost:11434",
-})
-
-// Create profile and make completion
-client.AddProfile("myprofile", sage.Profile{
-    Provider: "openai",
-    Account:  "default",
-    Model:    "gpt-4o-mini",
-})
-
-resp, _ := client.Complete("myprofile", sage.Request{
-    Prompt: "Hello!",
-})
-fmt.Println(resp.Content)
+// Output:
+// API Key (required=true, secret=true, default=)
+// Base URL (required=false, secret=false, default=https://api.openai.com/v1)
 ```
 
 ## Documentation

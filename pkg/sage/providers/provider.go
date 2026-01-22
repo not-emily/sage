@@ -2,7 +2,9 @@
 package providers
 
 import (
+	"context"
 	"fmt"
+	"net/http"
 	"sort"
 )
 
@@ -21,13 +23,16 @@ type Provider interface {
 	Name() string
 
 	// Complete sends a request and returns the full response.
-	Complete(req Request) (*Response, error)
+	// ctx is used for cancellation and timeout control.
+	Complete(ctx context.Context, req Request) (*Response, error)
 
 	// CompleteStream sends a request and streams chunks.
-	CompleteStream(req Request) (<-chan Chunk, error)
+	// ctx is used for cancellation; goroutine must respect ctx.Done().
+	CompleteStream(ctx context.Context, req Request) (<-chan Chunk, error)
 
 	// ListModels returns available models from this provider.
-	ListModels(apiKey, baseURL string) ([]ModelInfo, error)
+	// ctx is used for cancellation and timeout control.
+	ListModels(ctx context.Context, apiKey, baseURL string) ([]ModelInfo, error)
 
 	// Fields returns the configuration fields required by this provider.
 	Fields() []ProviderField
@@ -42,12 +47,13 @@ type ModelInfo struct {
 
 // Request is the normalized request format for providers.
 type Request struct {
-	Model     string
-	System    string
-	Prompt    string
-	MaxTokens int
-	APIKey    string // Decrypted, passed in by client
-	BaseURL   string // Optional override
+	Model      string
+	System     string
+	Prompt     string
+	MaxTokens  int
+	APIKey     string       // Decrypted, passed in by client
+	BaseURL    string       // Optional override
+	HTTPClient *http.Client // HTTP client to use for requests
 }
 
 // Response is the normalized response from providers.

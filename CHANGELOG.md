@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-01-22
+
+### Breaking Changes
+
+**Library API**: All Client and Provider methods now require `context.Context` as the first parameter.
+
+- `Complete(ctx context.Context, profile string, req Request)`
+- `CompleteStream(ctx context.Context, profile string, req Request)`
+- `ListModels(ctx context.Context, provider, account string)`
+
+See [docs/migration-v0.6.md](docs/migration-v0.6.md) for upgrading from v0.5.
+
+**CLI users**: No breaking changes. CLI behavior is identical to v0.5.
+
+### Added
+
+- **Context support**: Enable request cancellation, timeouts, and tracing integration
+- **HTTP client configurability**: Configure timeouts, proxies, and connection pooling via `Client.HTTPClient` field
+- **Sensible default timeouts**: 5-minute timeout instead of infinite (configurable)
+- **CLI test coverage**: Test infrastructure for CLI commands, ensuring JSON output stability
+
+### Fixed
+
+- Infinite HTTP timeouts could cause hangs (now defaults to 5 minutes)
+- No way to cancel long-running requests (now supports context cancellation)
+- Providers hardcoded `http.DefaultClient` (now configurable)
+
+### Security
+
+- Default HTTP client includes timeouts to prevent resource exhaustion
+- Connection pooling limits prevent excessive resource usage
+
+## [0.5.0] - 2026-01-16
+
+### Added
+
+- `sage update` command to check for and install new versions
+- Version detection via `ReadBuildInfo`
+
+## [0.4.0] - 2026-01-15
+
+### Added
+
+- Machine-readable JSON output for all CLI commands via `--json` flag
+- Commands supporting `--json`: complete, models, profile, provider
+
 ## [0.3.0] - 2026-01-15
 
 ### Breaking Changes

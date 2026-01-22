@@ -3,6 +3,7 @@ package providers
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -83,7 +84,7 @@ type anthropicStreamDelta struct {
 	Text string `json:"text"`
 }
 
-func (a *anthropic) Complete(req Request) (*Response, error) {
+func (a *anthropic) Complete(ctx context.Context, req Request) (*Response, error) {
 	body := a.buildRequest(req, false)
 
 	jsonBody, err := json.Marshal(body)
@@ -91,14 +92,14 @@ func (a *anthropic) Complete(req Request) (*Response, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", a.endpoint(req), bytes.NewReader(jsonBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", a.endpoint(req), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	a.setHeaders(httpReq, req.APIKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := req.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -136,7 +137,7 @@ func (a *anthropic) Complete(req Request) (*Response, error) {
 	}, nil
 }
 
-func (a *anthropic) CompleteStream(req Request) (<-chan Chunk, error) {
+func (a *anthropic) CompleteStream(ctx context.Context, req Request) (<-chan Chunk, error) {
 	body := a.buildRequest(req, true)
 
 	jsonBody, err := json.Marshal(body)
@@ -144,14 +145,14 @@ func (a *anthropic) CompleteStream(req Request) (<-chan Chunk, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", a.endpoint(req), bytes.NewReader(jsonBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", a.endpoint(req), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	a.setHeaders(httpReq, req.APIKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := req.HTTPClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
@@ -171,6 +172,14 @@ func (a *anthropic) CompleteStream(req Request) (<-chan Chunk, error) {
 		var currentEvent string
 
 		for scanner.Scan() {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				ch <- Chunk{Error: ctx.Err()}
+				return
+			default:
+			}
+
 			line := scanner.Text()
 
 			// Track event type
@@ -275,7 +284,7 @@ func (a *anthropic) handleError(resp *http.Response) error {
 
 // ListModels returns available Claude models.
 // Anthropic doesn't have a models endpoint, so we return a hardcoded list.
-func (a *anthropic) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+func (a *anthropic) ListModels(ctx context.Context, apiKey, baseURL string) ([]ModelInfo, error) {
 	// Hardcoded list of current Claude models
 	return []ModelInfo{
 		{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Description: "Most capable model for complex tasks"},

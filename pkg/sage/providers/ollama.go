@@ -3,6 +3,7 @@ package providers
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -55,7 +56,7 @@ type ollamaResponse struct {
 	Error           string        `json:"error,omitempty"`
 }
 
-func (o *ollama) Complete(req Request) (*Response, error) {
+func (o *ollama) Complete(ctx context.Context, req Request) (*Response, error) {
 	body := o.buildRequest(req, false)
 
 	jsonBody, err := json.Marshal(body)
@@ -63,14 +64,14 @@ func (o *ollama) Complete(req Request) (*Response, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", o.endpoint(req), bytes.NewReader(jsonBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", o.endpoint(req), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	o.setHeaders(httpReq, req.APIKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := req.HTTPClient.Do(httpReq)
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") {
 			return nil, fmt.Errorf("ollama not running (is Ollama installed and started?)")
@@ -102,7 +103,7 @@ func (o *ollama) Complete(req Request) (*Response, error) {
 	}, nil
 }
 
-func (o *ollama) CompleteStream(req Request) (<-chan Chunk, error) {
+func (o *ollama) CompleteStream(ctx context.Context, req Request) (<-chan Chunk, error) {
 	body := o.buildRequest(req, true)
 
 	jsonBody, err := json.Marshal(body)
@@ -110,14 +111,14 @@ func (o *ollama) CompleteStream(req Request) (<-chan Chunk, error) {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequest("POST", o.endpoint(req), bytes.NewReader(jsonBody))
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", o.endpoint(req), bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	o.setHeaders(httpReq, req.APIKey)
 
-	resp, err := http.DefaultClient.Do(httpReq)
+	resp, err := req.HTTPClient.Do(httpReq)
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") {
 			return nil, fmt.Errorf("ollama not running (is Ollama installed and started?)")
@@ -138,6 +139,14 @@ func (o *ollama) CompleteStream(req Request) (<-chan Chunk, error) {
 
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				ch <- Chunk{Error: ctx.Err()}
+				return
+			default:
+			}
+
 			line := scanner.Text()
 
 			// Skip empty lines
@@ -227,13 +236,13 @@ func (o *ollama) handleError(resp *http.Response) error {
 }
 
 // ListModels returns available models from the local Ollama instance.
-func (o *ollama) ListModels(apiKey, baseURL string) ([]ModelInfo, error) {
+func (o *ollama) ListModels(ctx context.Context, apiKey, baseURL string) ([]ModelInfo, error) {
 	endpoint := ollamaDefaultURL + "/api/tags"
 	if baseURL != "" {
 		endpoint = strings.TrimSuffix(baseURL, "/") + "/api/tags"
 	}
 
-	req, err := http.NewRequest("GET", endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

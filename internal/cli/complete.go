@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -10,6 +11,14 @@ import (
 
 	"github.com/not-emily/sage/pkg/sage"
 )
+
+// clientInterface defines the methods needed for completion
+// This allows for mocking in tests
+type clientInterface interface {
+	Complete(ctx context.Context, profile string, req sage.Request) (*sage.Response, error)
+	CompleteStream(ctx context.Context, profile string, req sage.Request) (<-chan sage.Chunk, error)
+	GetProfile(name string) (*sage.Profile, error)
+}
 
 func runComplete(args []string) error {
 	fs := flag.NewFlagSet("complete", flag.ExitOnError)
@@ -76,8 +85,9 @@ Examples:
 	return completeStream(client, *profile, req)
 }
 
-func completeJSON(client *sage.Client, profile string, req sage.Request) error {
-	resp, err := client.Complete(profile, req)
+func completeJSON(client clientInterface, profile string, req sage.Request) error {
+	ctx := context.Background()
+	resp, err := client.Complete(ctx, profile, req)
 	if err != nil {
 		return err
 	}
@@ -96,8 +106,9 @@ func completeJSON(client *sage.Client, profile string, req sage.Request) error {
 	return enc.Encode(output)
 }
 
-func completeStreamJSON(client *sage.Client, profile, model string, req sage.Request) error {
-	chunks, err := client.CompleteStream(profile, req)
+func completeStreamJSON(client clientInterface, profile, model string, req sage.Request) error {
+	ctx := context.Background()
+	chunks, err := client.CompleteStream(ctx, profile, req)
 	if err != nil {
 		return err
 	}
@@ -125,8 +136,9 @@ func completeStreamJSON(client *sage.Client, profile, model string, req sage.Req
 	return nil
 }
 
-func completeStream(client *sage.Client, profile string, req sage.Request) error {
-	chunks, err := client.CompleteStream(profile, req)
+func completeStream(client clientInterface, profile string, req sage.Request) error {
+	ctx := context.Background()
+	chunks, err := client.CompleteStream(ctx, profile, req)
 	if err != nil {
 		return err
 	}
