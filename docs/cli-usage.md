@@ -165,6 +165,7 @@ sage provider add <provider> [flags]
 | `--account` | Account name (default: "default") |
 | `--api-key-env` | Environment variable containing API key |
 | `--base-url` | Custom base URL (for proxies or compatible APIs) |
+| `--stdin` | Read fields as JSON from stdin (for scripting) |
 
 Examples:
 
@@ -187,6 +188,26 @@ sage provider add ollama
 
 # Remote Ollama
 sage provider add ollama --base-url=http://server:11434
+```
+
+#### Scripting with --stdin
+
+For programmatic use, pass fields as JSON via stdin. This keeps secrets out of bash history and process arguments.
+
+```bash
+# Discover required fields first
+sage provider fields openai --json
+
+# Add provider with fields from stdin
+echo '{"api_key":"sk-..."}' | sage provider add openai --stdin --json
+
+# With custom base URL
+echo '{"api_key":"sk-...","base_url":"https://api.myproxy.com/v1"}' | \
+  sage provider add openai --stdin --json
+
+# Flags override stdin values
+echo '{"api_key":"sk-..."}' | \
+  sage provider add openai --stdin --base-url=https://custom.url --json
 ```
 
 **JSON output** (`--json`):

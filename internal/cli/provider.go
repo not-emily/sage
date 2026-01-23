@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -53,6 +54,9 @@ Examples:
   sage provider models openai
   sage provider fields openai
   sage provider remove openai --account=work
+
+  # Scripting (fields via stdin):
+  echo '{"api_key":"sk-..."}' | sage provider add openai --stdin --json
 `
 	fmt.Print(help)
 	return nil
@@ -99,6 +103,7 @@ func runProviderAdd(args []string) error {
 	account := fs.String("account", "default", "account name")
 	apiKeyEnv := fs.String("api-key-env", "", "environment variable containing API key")
 	baseURLFlag := fs.String("base-url", "", "custom base URL (overrides prompt)")
+	stdinFlag := fs.Bool("stdin", false, "read fields as JSON from stdin (for scripting)")
 	jsonOutput := fs.Bool("json", false, "output JSON")
 
 	fs.Usage = func() {
@@ -117,6 +122,9 @@ Examples:
   sage provider add openai --account=work
   sage provider add openai --api-key-env=OPENAI_API_KEY
   sage provider add ollama --base-url=http://remote:11434
+
+  # For scripting (fields as JSON via stdin):
+  echo '{"api_key":"sk-..."}' | sage provider add openai --stdin --json
 `)
 	}
 
@@ -144,10 +152,21 @@ Examples:
 	copy(sortedFields, fieldDefs)
 	sortFields(sortedFields)
 
-	// Build fields map, starting with flag overrides
+	// Build fields map
 	fields := make(map[string]string)
 
-	// Apply flag overrides first
+	// If --stdin, read JSON fields from stdin first
+	if *stdinFlag {
+		stdinFields, err := readFieldsFromStdin()
+		if err != nil {
+			return fmt.Errorf("failed to read fields from stdin: %w", err)
+		}
+		for k, v := range stdinFields {
+			fields[k] = v
+		}
+	}
+
+	// Apply flag overrides (flags take precedence over stdin)
 	if *apiKeyEnv != "" {
 		apiKey := os.Getenv(*apiKeyEnv)
 		if apiKey == "" {
@@ -159,13 +178,28 @@ Examples:
 		fields["base_url"] = *baseURLFlag
 	}
 
-	// Prompt for each field that wasn't provided via flags
+	// Handle missing fields
 	for _, f := range sortedFields {
-		// Skip if already provided via flag
+		// Skip if already provided
 		if _, ok := fields[f.Key]; ok {
 			continue
 		}
 
+		// Apply default if available
+		if f.Default != "" {
+			fields[f.Key] = f.Default
+			continue
+		}
+
+		// In stdin mode, don't prompt - error if required field is missing
+		if *stdinFlag {
+			if f.Required {
+				return fmt.Errorf("missing required field: %s", f.Key)
+			}
+			continue
+		}
+
+		// Interactive mode: prompt for the field
 		value, err := promptForField(f)
 		if err != nil {
 			return err
@@ -197,6 +231,21 @@ Examples:
 
 	fmt.Printf("Added %s:%s\n", providerName, *account)
 	return nil
+}
+
+// readFieldsFromStdin reads JSON field values from stdin.
+func readFieldsFromStdin() (map[string]string, error) {
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return nil, err
+	}
+
+	var fields map[string]string
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+
+	return fields, nil
 }
 
 // sortFields sorts fields with required fields first, preserving original order within each group.
