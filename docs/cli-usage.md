@@ -119,6 +119,8 @@ Commands:
   list      List configured providers and accounts
   add       Add a provider account
   remove    Remove a provider account
+  models    List available models from a provider
+  fields    List configuration fields for a provider
 ```
 
 ### Supported Providers
@@ -244,6 +246,41 @@ sage provider models openai --account=work
   "models": [
     {"id": "gpt-4o", "name": "gpt-4o"},
     {"id": "gpt-4o-mini", "name": "gpt-4o-mini"}
+  ]
+}
+```
+
+### provider fields
+
+List configuration fields required by a provider. Useful for scripting `provider add`.
+
+```bash
+sage provider fields <provider>
+```
+
+Examples:
+
+```bash
+sage provider fields openai
+sage provider fields anthropic
+sage provider fields ollama
+```
+
+Output:
+```
+Fields for openai:
+
+  api_key: API Key (required)
+  base_url: Base URL [default: https://api.openai.com/v1]
+```
+
+**JSON output** (`--json`):
+```json
+{
+  "provider": "openai",
+  "fields": [
+    {"key": "api_key", "label": "API Key", "required": true, "secret": true},
+    {"key": "base_url", "label": "Base URL", "required": false, "secret": false, "default": "https://api.openai.com/v1"}
   ]
 }
 ```

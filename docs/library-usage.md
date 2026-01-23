@@ -146,6 +146,10 @@ err = client.AddProviderAccount("openai", "work", "sk-...")
 
 // Remove provider account
 err = client.RemoveProviderAccount("openai", "work")
+
+// Get fields required by a provider (useful before AddProviderAccount)
+fields, err := sage.GetProviderFields("openai")
+// Returns []sage.ProviderField with Key, Label, Required, Secret, Default
 ```
 
 ## Types Reference
